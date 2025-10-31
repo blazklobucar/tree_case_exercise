@@ -71,14 +71,19 @@ install.packages(c("sf","dplyr","tidyverse","stringr","units"))
 
 library(sf)
 library(dplyr)
-library(tidyverse)
+library(tidyverse) #there will be some conflits, but ignore them
 library(stringr)
 
 #now we create a variable with file paths to all three shapefiles REMEMBER! replace the path in quotes with the corresponding filepath on your own computer
 
-path1 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/trad_251020/trad_251020.shp"
-path2 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/districts/districts.shp"
-path3 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/canopy_cover/canopy_cover.shp"
+
+#path1 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/trad_251020/trad_251020.shp"
+#path2 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/districts/districts.shp"
+#path3 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/canopy_cover/canopy_cover.shp"
+
+path1 <- "/home/bklobucar/Workspace/uf_course/tree_case_exercise/data/trees/trad_251020.shp"
+path2 <- "/home/bklobucar/Workspace/uf_course/tree_case_exercise/data/districts/districts.shp"
+path3 <- "/home/bklobucar/Workspace/uf_course/tree_case_exercise/data/canopy/canopy.shp"
 
 #now we import the files and create variables for each shapefile with a distinct name (trees, districts, canopy). Larger files might take a while to load! Wait until the > prompt appears again in the console before running the next command.
 

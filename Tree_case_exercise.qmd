@@ -1,0 +1,327 @@
+---
+title: "Tree Case Exercise: RStudio"
+format: pdf
+editor: visual
+author: Blaz Klobucar
+---
+
+# Tree case exercise for Urban Forestry course
+
+Reliable, verifiable data is key for any type of natural resource management. Therefore it is important for urban forest management to be able to conduct some level of data analysis to be able to make informed decisions in their work. This are the instructions to introduce you all to using R for **data wrangling**, **data analysis** and **visualization**.
+
+-   **Data wrangling** is the process of transforming data from the form it was received, into something you can use. The data is not always tidy and prepared the way you would like.
+
+-   **Data analysis** is the process of using mathematical calculations to create valuable and relevant insight into your subject of analysis
+
+-   **Visualization** is the process of showing your analysis results in a visually appealing form that is easy for any observer to understand
+
+**During this exercise you will learn to:**
+
+1.  Import and explore various data from Malmö City tree database, which includes: tree inventory data, canopy cover data and city district data
+
+2.  Combine the data with city district area data to get a better understanding on how trees are distributed across the city.
+
+3.  Show what tree Genus are most represented in the city and your city area
+
+4.  Calculate species diversity index and canopy cover for your city area
+
+Essentially, what you will do here is use a set of commands for the computer to transform information in the way you want it to. You do not need to know these commands, as this document will contain all you need for this exercise. As to the answer the question why use R and RStudio? While similar analysis could be done some other way, we decided for this due to several reasons:
+
+-   **Transparency**: The commands you use are written down in a script, which makes it very easy to track and follow every step of analysis
+
+-   **Versatility**: R contains libraries that can perform all kinds of analysis that you would otherwise need several different programs to complete.
+
+-   **Accessibility**: R is free and open-source, as opposed to some other software solutions (MS Office, ESRI etc.). It is also is a very commonly used statistical/scientific programming tool by users around the world, which makes it easy to troubleshoot and find examples of use.
+
+-   **AI assistance**: with the rise and availability of LLM, the level of skill needed to write basic code (and troubleshoot when it inevitably doesn't run) has been significantly lowered. Use it often, there is no shame in using AI for coding.
+
+The instructions on how to set up R and RStudio are [available at the following link](https://posit.co/download/rstudio-desktop/).
+
+After you have installed R and RStudion, click on File -\> Open File and select the "Tree_case_exercise.qmd" from the location you saved it on your computer.
+
+## Data Import and Exploration
+
+On top of the .qmd file which contains instructions, you have have three important files on Canvas that you will need to download and save an easily accesible folder on your computer. These files are:
+
+1.  The first one (trad_251020.shp) containing the inventory of all park and street trees in Malmö with their location and attributes. Trees are marked as points, the important attributes we will be using are: species, DBH and crown diameter
+2.  The second file (districts.shp) contains a map of Malmö city borders and subdivisions within the city are (Område). Later on, we will separate you into groups where each group will be assigned an area within a city for your analysis
+3.  The third file (canopy_cover.shp) contains the canopy cover map created by Malmö municipality with the use of high resolution remote sensing.
+
+Data provided comes in the form of a shapefile, which is a file format commonly used in spatial analysis. The main file is recognized by .shp suffix. Ther are also several other files with the same name but different suffixes (.shx, .dbf, .prj etc) which are all needed to open and use the shapefile correctly.
+
+## Notes and tips on running code:
+
+-   The easiest way to run individual code lines or blocks in RStudio is to place the cursor at the start of the code line or block and press **Ctrl+Enter** (or **Cmd+Enter** on Mac). This will run the code and show the output in the Console window below. The code lines with the \# symbol in front are only used for annotations and will not run.
+-   If the code has run correctly, you will see the output or a confirmation message in the Console window and a \> single line prompt will appear again. Often, you will see a new item appear in the top right window afterwards.
+-   If it did not run correctly, you will see an error message in red text. Read the message carefully, it often gives you a clue about what went wrong.
+-   Error messages are usually caused by typos, missing packages or incorrect file paths. If you get stuck, try searching the error message online or ask for help.
+-   If you have taken a break and closed the RStudio, you will need to re-run the code from the start to load the packages and data again.
+-   Remember to save your work often by clicking on File -\> Save or pressing **Ctrl+S** (or **Cmd+S** on Mac).
+-   If you want to clear the Console window, you can press **Ctrl+L** (or **Cmd+L** on Mac).
+-   If you want to run all the code in a code block, you can click on the green play button at the top right corner of the code block.
+
+**Now lets get into importing our data into RStudio!**
+
+Here are is how you import the shapefiles:
+
+```{r}
+#install and load the required packages
+#it will take a while for the computer to install the packages, be patient and wait for the > prompt
+install.packages(c("sf","dplyr","tidyverse","stringr","units")) 
+
+library(sf)
+library(dplyr)
+library(tidyverse)
+library(stringr)
+
+#now we create a variable with file paths to all three shapefiles REMEMBER! replace the path in quotes with the corresponding filepath on your own computer
+
+path1 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/trad_251020/trad_251020.shp"
+path2 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/districts/districts.shp"
+path3 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/canopy_cover/canopy_cover.shp"
+
+#now we import the files and create variables for each shapefile with a distinct name (trees, districts, canopy). Larger files might take a while to load! Wait until the > prompt appears again in the console before running the next command.
+
+trees <- st_read(path1)
+districts <- st_read(path2)
+canopy <- st_read(path3)
+
+#gives you a preview of what the files contain
+
+glimpse(districts)    #you can see in the console output that it is a simple feature collection with 8 features and 6 fields
+glimpse(canopy)    #you can see in the console output that it is a simple feature collection with 1 feature and 2 fields
+glimpse(trees)     #you can see in the console output that it is a simple feature collection with 25794 features and 12 fields, note the names of columns and what information they contain
+
+#Here we will generate a simple image of Malmö colored by city_areas, which is a unit we created for this exercise
+
+plot(districts["city_area"])
+
+```
+
+To summarize: you successfully imported the shapefiles using the appropriate commands. You took a quick look of the structure of the dataset and now understand how it is assembled.
+
+## Wrangling and visualizing the data
+
+More often than not, the data that you need to analyze comes in a "messy" form and it is up to you to shape it into something you can use for your analysis. Tree names and parameters are commonly entered manually or transcribed from field notes into digital form, so be aware that spelling mistakes, omissions, wrong values are common.
+
+As you might have seen in the previous step, the tree species in the database is identified by a scientific name in one field and a Swedish name in the other. In urban forestry, diversity is often measured by the number of trees belonging to the same genus. But to be able to count how many species are in a specific genus we need to "wrangle" the data first. We will separate the scientific name into two components (Genus + species name) in the next step:
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(sf)
+
+# Separate the vet_namn column into genus and species
+trees <- trees %>%
+  mutate(vet_namn = str_squish(vet_namn)) %>%
+  separate(vet_namn, into = c("genus", "species"), sep = " ", extra = "merge", fill = "right")
+
+glimpse(trees)  #check the structure of the dataset again to see if the new columns were created
+
+```
+
+As you can see, the vet_namn containing latin name was separated into two columns containing the genus and species name.
+
+Next we will calculate the number of trees within of the each genus in the dataset and visualize top 20 in a histogram. We will also include the percentage of each genus from the total number of trees in the dataset to see if it complies with the Santamour rule for diversity
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+library(stringr)
+library(sf)
+
+#first lets check how many genera we have in the dataset
+unique_genera <- trees %>%
+  st_set_geometry(NULL) %>%  # drop geometry for speed
+  filter(!is.na(genus), genus != "") %>%
+  distinct(genus)
+
+print(unique_genera) #print the unique genera to the console 
+
+
+# now we will calculate counts per genus and prepare data for plotting for top 20 genera, as they are too many to show all at once
+# ensure genus exists
+
+if (!"genus" %in% names(trees)) {
+  trees <- trees %>%
+    mutate(vet_namn = str_squish(vet_namn)) %>%
+    separate(vet_namn, into = c("genus", "species"), sep = " ", extra = "merge", fill = "right")
+}
+
+top_genus <- trees %>%
+  st_set_geometry(NULL) %>%                   # drop geometry for speed
+  filter(!is.na(genus), genus != "", genus != "Okänd") %>% # remove missing/unknown genera
+  count(genus, sort = TRUE) %>%
+  mutate(percent = 100 * n / sum(n)) %>%      # we will calculate the percent share of total trees
+  slice_head(n = 20) %>%                  # top 20 genera
+  mutate(genus = fct_reorder(genus, n)) #sort for plotting
+
+#use ggplot package to create the bar plot
+
+p_top20_genus <- ggplot(top_genus, aes(x = genus, y = n)) +
+  geom_col(fill = "forestgreen", color = "white", alpha = 0.85) +
+  geom_text(aes(label = paste0(round(percent, 1), "%")),
+            hjust = -0.1, size = 5) +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.15))) +
+  coord_flip() +
+  theme_minimal() +
+  labs(
+    title = "Top 20 Tree Genera",
+    subtitle = "Counts from Malmö tree inventory",
+    x = NULL,
+    y = "Number of trees"
+  )
+
+p_top20_genus
+
+# explicitly print the plot so it is rendered in Quarto/knitr, especially when rendering to PDF
+print(p_top20_genus)
+
+```
+
+If you managed to run the code above, you should see a bar plot with the 20 most common tree genera in Malmö. Check if any of them exceed the rule of tree diversity.
+
+**Your task now is to generate the same plot but for your assigned city area only and compare it to the entire city. You will need to filter the trees located within your city area first.**
+
+Next, we will calculate the diversity index for the entire tree dataset. There are several ways to calculate diversity, but we will use the Shannon index (H'), Simpson's index (D) and Pielou's evenness (J') here. \* Shannon index (H') takes into account both species richness and evenness. Higher values indicate greater diversity. \* Simpson's index (D) measures the probability that two individuals randomly selected from a sample will belong to the same species. Values closer to 0 indicate higher diversity. \* Pielou's evenness (J') measures how evenly individuals are distributed among the species present. Values closer to 1 indicate a more even distribution.
+
+```{r}
+#Calculating Diversity Index
+
+library(dplyr)
+library(stringr)
+library(sf)
+library(tidyr)
+library(units)
+
+
+
+#Use the original vet_namn (rebuilding it from genus+species), drop geometry, trim whitespace, then count:
+
+# prepare species counts using the original 'vet_namn' (reconstruct if missing)
+trees_sp <- trees %>%
+  st_set_geometry(NULL) %>%
+  mutate(
+    vet_namn_orig = if ("vet_namn" %in% names(.)) vet_namn else NA_character_,
+    vet_namn = case_when(
+      !is.na(vet_namn_orig) & vet_namn_orig != "" ~ str_squish(as.character(vet_namn_orig)),
+      all(c("genus", "species") %in% names(.)) ~ str_squish(paste(genus, species)),
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(vet_namn), vet_namn != "") %>%
+  count(vet_namn, name = "n")
+
+trees_sp
+~~~~
+
+# totals and proportions
+N <- sum(trees_sp$n)
+S <- nrow(trees_sp)
+p <- trees_sp$n / N
+
+# diversity metrics (natural log used for Shannon)
+H_shannon <- -sum(p * log(p))
+D_simpson <- sum(p^2)                # Simpson's index (dominance)
+InvSimpson <- if (D_simpson > 0) 1 / D_simpson else NA
+Pielou_evenness <- if (S > 1) H_shannon / log(S) else NA
+
+diversity_summary <- tibble(
+total_trees = N,
+  species_richness = S,
+  shannon_H = H_shannon,
+  simpson_D = D_simpson,
+  inverse_simpson = InvSimpson,
+  pielou_evenness = Pielou_evenness
+)
+
+diversity_summary
+```
+
+In the output you should see a table for the diversity indices calculated for all trees in Malmö. From the output we can see that diversity in Malmö is quite high or even above average with 951 unique tree species (or subspecies) names in the database. The Shannon index which (H') typically ranges from 1.5 to 3.5 in ecological datasets, with higher values indicating greater diversity stands at **4.85**. Simpson's index (D) ranges from 0 to 1, where values closer to 0 indicate higher diversity. In our case this probability is around 0.197, so nearly 2% probability that two randomly selected individuals will be of the same species. Pielou's evenness (J') ranges from 0 to 1, with values closer to 1 indicating a more even distribution of individuals among species. With the value of **0.707**, it indicates a moderately even distribution of individuals among species in Malmö.
+
+**Your task now is to calculate the same diversity indices for your assigned city area only and compare it to the entire city. As before, you will need to filter the trees located within your city area first.**
+
+Next we will calculate canopy cover for Malmö and your assigned city area using the canopy cover shapefile provided.
+
+```{r}
+#Calculating Canopy Cover NOT WORKING, NEEDS FIXING
+
+library(dplyr)
+library(sf)
+library(units)
+# Read in canopy cover shapefile if not already loaded
+if (!exists("canopy")) {
+  path3 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/canopy_cover/canopy_cover.shp"
+  canopy <- st_read(path3)
+}
+
+# Ensure both datasets use the same CRS
+canopy <- st_transform(canopy, st_crs(districts))
+districts <- st_transform(districts, st_crs(canopy))
+# Calculate total area of Malmö
+malmo_area <- st_union(districts) %>%
+  st_area() %>%
+  set_units("hectares")
+# Calculate total canopy area in Malmö NOTE: this will take some time to compute!
+canopy_area <- st_union(canopy) %>%
+  st_area() %>%
+  set_units("hectares")
+# Calculate canopy cover percentage for Malmö
+canopy_cover_percent <- (canopy_area / malmo_area) * 100
+# remove units for output
+canopy_cover_percent <- set_units(canopy_cover_percent, NULL)
+# Output results
+canopy_summary <- tibble(
+  malmo_total_area_ha = as.numeric(malmo_area),
+  canopy_area_ha = as.numeric(canopy_area),
+  canopy_cover_percent = as.numeric(canopy_cover_percent)
+)
+
+#now we are goint to print the canopy summary to the console
+
+canopy_summary
+# Ensure valid geometries to avoid intersection errors and improve performance
+districts_valid <- st_make_valid(districts)
+canopy_valid <- st_make_valid(canopy)
+
+#now we are going to calculate canopy cover relative to city_area groupings in the districts dataset and show the results in a simple map
+
+canopy_by_city_area <- districts_valid %>%
+  group_by(city_area) %>%
+  summarise(geometry = st_union(geometry), .groups = "drop") %>%
+  rowwise() %>%
+  mutate(
+    total_area_ha = st_area(geometry) %>% set_units("hectares"),
+    canopy_area_ha = {
+      inter <- st_intersection(canopy_valid, geometry)
+      # if intersection yields no features, return zero hectares, otherwise compute union area
+      if (inherits(inter, "sf") && nrow(inter) == 0) {
+        set_units(0, "hectares")
+      } else {
+        st_union(inter) %>% st_area() %>% set_units("hectares")
+      }
+    },
+    canopy_cover_percent = (canopy_area_ha / total_area_ha) * 100
+  ) %>%
+  ungroup() %>%
+  mutate(canopy_cover_percent = set_units(canopy_cover_percent, NULL))# remove units for output
+
+
+# Plot canopy cover by city area
+plot(canopy_by_city_area["canopy_cover_percent"],
+     main = "Canopy Cover Percentage by City Area",
+     pal = hcl.colors(10, "Greens", rev = TRUE))
+     main = "Canopy Cover Percentage by City Area",
+     pal = hcl.colors(10, "Greens", rev = TRUE))
+
+# Print canopy cover by city area to console
+canopy_by_city_area %>%
+  st_set_geometry(NULL) %>%
+  select(city_area, total_area_ha, canopy_area_ha, canopy_cover_percent)
+
+
+
+```

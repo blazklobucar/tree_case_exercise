@@ -117,7 +117,7 @@ library(tidyverse)
 library(stringr)
 library(sf)
 
-# Separate the vet_namn column into genus and species
+# Separate the vet_namn column into genus and species for easier handling
 trees <- trees %>%
   mutate(vet_namn = str_squish(vet_namn)) %>%
   separate(vet_namn, into = c("genus", "species"), sep = " ", extra = "merge", fill = "right")
@@ -181,8 +181,7 @@ p_top20_genus <- ggplot(top_genus, aes(x = genus, y = n)) +
 
 p_top20_genus
 
-# explicitly print the plot so it is rendered in Quarto/knitr, especially when rendering to PDF
-print(p_top20_genus)
+
 
 ```
 
@@ -257,11 +256,46 @@ Next we will calculate canopy cover for Malmö and your assigned city area using
 library(dplyr)
 library(sf)
 library(units)
-# Read in canopy cover shapefile if not already loaded
+# Reads in canopy cover shapefile if not already loaded
 if (!exists("canopy")) {
   path3 <- "C:/Users/blar0001/Documents/Workspace/Teaching/uf_course/canopy_cover/canopy_cover.shp"
   canopy <- st_read(path3)
 }
+
+
+st_crs(canopy) <- 3008
+canopy <- st_transform(canopy, st_crs(districts))
+
+
+head(st_coordinates(canopy))
+
+test <- st_intersection(canopy, districts)
+nrow(test)
+head(st_coordinates(districts))
+
+nrow(st_intersection(canopy, districts))
+st_crs(canopy)
+st_crs(districts)
+
+
+districts <- st_make_valid(districts)
+canopy <- st_make_valid(canopy)
+
+
+# Correct the district CRS label
+st_crs(districts) <- 3006  # Correct the mislabel
+# Now reproject it properly into canopy's CRS
+districts <- st_transform(districts, 3008)
+
+nrow(st_intersection(canopy, districts))
+
+
+
+
+
+
+
+
 
 # Ensure both datasets use the same CRS
 canopy <- st_transform(canopy, st_crs(districts))
@@ -284,48 +318,93 @@ canopy_summary <- tibble(
   canopy_area_ha = as.numeric(canopy_area),
   canopy_cover_percent = as.numeric(canopy_cover_percent)
 )
+# Ensure both layers are in the same CRS (you've already done this)
+canopy <- st_transform(canopy, st_crs(districts))
 
-#now we are goint to print the canopy summary to the console
+# Intersect canopy with districts to find canopy area inside each district
+canopy_in_districts <- st_intersection(canopy, districts)
 
-canopy_summary
-# Ensure valid geometries to avoid intersection errors and improve performance
-districts_valid <- st_make_valid(districts)
-canopy_valid <- st_make_valid(canopy)
-
-#now we are going to calculate canopy cover relative to city_area groupings in the districts dataset and show the results in a simple map
-
-canopy_by_city_area <- districts_valid %>%
+# Calculate canopy area per district (in hectares)
+canopy_by_district <- canopy_in_districts %>%
+  mutate(canopy_area_ha = set_units(st_area(.), "hectares")) %>%
+  st_drop_geometry() %>%
   group_by(city_area) %>%
-  summarise(geometry = st_union(geometry), .groups = "drop") %>%
-  rowwise() %>%
+  summarise(canopy_area_ha = sum(as.numeric(canopy_area_ha), na.rm = TRUE))
+
+# Calculate total district area per city_area (in hectares)
+district_area <- districts %>%
+  mutate(district_area_ha = set_units(st_area(.), "hectares")) %>%
+  st_drop_geometry() %>%
+  group_by(city_area) %>%
+  summarise(district_area_ha = sum(as.numeric(district_area_ha), na.rm = TRUE))
+
+# Join and compute canopy cover %
+canopy_cover_by_city_area <- district_area %>%
+  left_join(canopy_by_district, by = "city_area") %>%
   mutate(
-    total_area_ha = st_area(geometry) %>% set_units("hectares"),
-    canopy_area_ha = {
-      inter <- st_intersection(canopy_valid, geometry)
-      # if intersection yields no features, return zero hectares, otherwise compute union area
-      if (inherits(inter, "sf") && nrow(inter) == 0) {
-        set_units(0, "hectares")
-      } else {
-        st_union(inter) %>% st_area() %>% set_units("hectares")
-      }
-    },
-    canopy_cover_percent = (canopy_area_ha / total_area_ha) * 100
-  ) %>%
-  ungroup() %>%
-  mutate(canopy_cover_percent = set_units(canopy_cover_percent, NULL))# remove units for output
+    canopy_cover_percent = (canopy_area_ha / district_area_ha) * 100
+  )
+
+# Optional: round for cleaner output
+canopy_cover_by_city_area <- canopy_cover_by_city_area %>%
+  mutate(across(ends_with("_ha") | ends_with("_percent"), round, 2))
+
+# View results
+print(canopy_cover_by_city_area)
+
+# Load required libraries
+library(ggplot2)
+library(sf)
+library(viridis)
+install.packages("viridis")
+
+# Join the canopy cover data back to the spatial districts data
 
 
-# Plot canopy cover by city area
-plot(canopy_by_city_area["canopy_cover_percent"],
-     main = "Canopy Cover Percentage by City Area",
-     pal = hcl.colors(10, "Greens", rev = TRUE))
-     main = "Canopy Cover Percentage by City Area",
-     pal = hcl.colors(10, "Greens", rev = TRUE))
+districts_with_canopy <- districts %>%
+  left_join(canopy_cover_by_city_area, by = "city_area")
 
-# Print canopy cover by city area to console
-canopy_by_city_area %>%
-  st_set_geometry(NULL) %>%
-  select(city_area, total_area_ha, canopy_area_ha, canopy_cover_percent)
+# Create the choropleth map
+ggplot() +
+  geom_sf(data = districts_with_canopy, 
+          aes(fill = canopy_cover_percent), 
+          color = "white", 
+          size = 0.2) +
+  scale_fill_viridis(
+    name = "Canopy Cover (%)",
+    option = "viridis",
+    direction = -1,  # Makes darker colors = higher values
+    na.value = "grey80"
+  ) +
+  labs(
+    title = "Tree Canopy Cover Across Malmö",
+    subtitle = "Percentage of land area covered by tree canopy",
+    caption = "Data: Malmö City"
+  ) +
+  theme_void() +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+    plot.subtitle = element_text(hjust = 0.5, size = 10),
+    legend.position = "right",
+    legend.title = element_text(size = 10),
+    plot.caption = element_text(size = 8, color = "grey50")
+  )
+
+
+ggplot() +
+  geom_sf(data = districts_with_canopy, 
+          aes(fill = canopy_cover_percent), 
+          color = "white", 
+          size = 0.2) +
+  scale_fill_gradientn(
+    name = "Canopy Cover (%)",
+    colors = c("#f7fcf0", "#e0f3db", "#ccebc5", "#a8ddb5", "#7bccc4", "#4eb3d3", "#2b8cbe", "#08589e"),
+    na.value = "grey80"
+  ) +
+  labs(title = "Tree Canopy Cover Across Malmö") +
+  theme_void()
+
+
 
 
 
